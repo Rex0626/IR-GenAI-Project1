@@ -38,3 +38,7 @@ reports/
 # 其他工具或系統產生的檔案
 CACHEDIR.TAG
 *.DS_Store
+
+# ============== 強制使用 LF 換行符號 ==============
+# 確保跨平台的一致性，特別是在 Windows 和 Unix 系統之間
+*.sh text eol=lf
