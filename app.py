@@ -13,14 +13,14 @@ source_choice = st.selectbox("請選擇要查看的資料來源：", ["靜態網
 if "static" in source_choice:
     source_name = "books_static"
     # 【路徑修正 1】data_file 的路徑也需要對應您的專案結構
-    data_file = os.path.join('dual_source_scraper', 'data', 'books_static_20251011_p8.csv') # 【請確認檔名正確】
+    data_file = os.path.join('data', 'books_static_20251011_p8.csv') # 【請確認檔名正確】
 else:
     source_name = "quotes_dynamic"
     # 【路徑修正 2】data_file 的路徑也需要對應您的專案結構
-    data_file = os.path.join('dual_source_scraper', 'data', 'quotes_dynamic_20251011_p8.csv') # 【請確認檔名正確】
+    data_file = os.path.join('data', 'quotes_dynamic_20251011_p8.csv') # 【請確認檔名正確】
 
 # 【路徑修正 3 - 核心修正】顯示比較摘要圖
-summary_chart_path = os.path.join("compare", "reports", f"chart_comp_{source_name}_summary.png")
+summary_chart_path = os.path.join("reports", f"chart_comp_{source_name}_summary.png")
 
 if os.path.exists(summary_chart_path):
     st.header("資料變動摘要")
