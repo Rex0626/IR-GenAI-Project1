@@ -20,12 +20,15 @@ env/
 
 # ============== 爬蟲產生的資料與日誌 ==============
 # 這些檔案可以透過重新執行爬蟲來生成，避免將大量數據上傳到 Git
-dual_source_scraper/data/
-dual_source_scraper/logs/
+.data/
+data/
+.logs/
+logs/
 
 # ============== 分析報告與圖表 ==============
 # 這些也是可以透過執行分析腳本重新生成的
-compare/reports/
+.reports/
+reports/
 
 # ============== IDE 或系統產生的設定檔 ==============
 # 例如 VS Code 的設定檔，這些通常是個人化的
