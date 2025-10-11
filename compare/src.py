@@ -144,7 +144,7 @@ def create_visualizations(
         print(f"產生圖表 2 (數值分佈) 失敗: {e}")
 
 # ==============================================================================
-# 函式 3: 專門進行「比較結果」的視覺化 (更新版，包含三張圖)
+# 函式 3: 專門進行「比較結果」的視覺化 (【最終版】，保證產生所有圖表)
 # ==============================================================================
 def create_comparison_visualizations(
     summary_data: dict,
@@ -154,15 +154,16 @@ def create_comparison_visualizations(
 ):
     """
     根據差異分析的結果，產生並儲存 3 張專門的「比較」視覺化圖表。
+    此版本確保在沒有修改資料時，也會產生帶有提示的空白圖表，以維持報告一致性。
     """
-    if not summary_data or diff_dataframe.empty:
-        print("沒有可供比較的資料，跳過差異視覺化。")
+    if not summary_data:
+        print("沒有摘要資料，跳過差異視覺化。")
         return
 
     print(f"--- 正在為 {source_name} 產生「比較結果」視覺化圖表 ---")
     os.makedirs(output_dir, exist_ok=True)
 
-    # --- 圖表 1: 資料變動摘要長條圖 ---
+    # --- 圖表 1: 資料變動摘要長條圖 (此圖表一定會產生) ---
     try:
         counts = summary_data.get('counts', {})
         df_counts = pd.DataFrame(list(counts.items()), columns=['變動類型', '數量'])
@@ -184,65 +185,74 @@ def create_comparison_visualizations(
     except Exception as e:
         print(f"產生比較圖表 1 (摘要) 失敗: {e}")
 
-    # 篩選出被修改的資料，供後續圖表使用
-    df_modified = diff_dataframe[diff_dataframe['status'] == 'modified'].copy()
+    # 篩選出被修改的資料
+    df_modified = diff_dataframe[diff_dataframe['status'] == 'modified'].copy() if diff_dataframe is not None else pd.DataFrame()
 
     # --- 圖表 2: 修改項目之價格變動散佈圖 ---
-    if not df_modified.empty and 'price/value_old' in df_modified.columns and 'price/value_new' in df_modified.columns:
-        try:
-            df_modified.dropna(subset=['price/value_old', 'price/value_new'], inplace=True)
-            plt.figure(figsize=(8, 8))
-            sns.scatterplot(data=df_modified, x='price/value_old', y='price/value_new', alpha=0.7)
-            
-            max_val = max(df_modified['price/value_old'].max(), df_modified['price/value_new'].max())
+    try:
+        plt.figure(figsize=(8, 8))
+        # 【修改邏輯】如果 df_modified 不是空的，且有價格欄位，就畫圖
+        if not df_modified.empty and 'price/value_old' in df_modified.columns and 'price/value_new' in df_modified.columns and not df_modified.dropna(subset=['price/value_old', 'price/value_new']).empty:
+            df_plot = df_modified.dropna(subset=['price/value_old', 'price/value_new'])
+            sns.scatterplot(data=df_plot, x='price/value_old', y='price/value_new', alpha=0.7)
+            max_val = max(df_plot['price/value_old'].max(), df_plot['price/value_new'].max())
             plt.plot([0, max_val], [0, max_val], 'r--', label='價格不變')
-            
-            plt.title(f'{source_name} - 修改項目之價格變動', fontsize=16)
-            plt.xlabel('修改前的價格 (Old Price)', fontsize=12)
-            plt.ylabel('修改後的價格 (New Price)', fontsize=12)
             plt.legend()
-            plt.grid(True)
-            plt.axis('equal')
-            plt.tight_layout()
+        # 【新增邏輯】如果沒有修改資料，就顯示一張空白的圖表與提示文字
+        else:
+            plt.text(0.5, 0.5, '本次更新中無價格變動的資料', ha='center', va='center', fontsize=14, color='gray')
+            plt.gca().get_xaxis().set_visible(False)
+            plt.gca().get_yaxis().set_visible(False)
             
-            chart_path = os.path.join(output_dir, f"chart_comp_{source_name}_price_change.png")
-            plt.savefig(chart_path)
-            plt.close()
-            print(f"已儲存比較圖表 2 -> {chart_path}")
-        except Exception as e:
-            print(f"產生比較圖表 2 (價格變動) 失敗: {e}")
+        plt.title(f'{source_name} - 修改項目之價格變動', fontsize=16)
+        plt.xlabel('修改前的價格 (Old Price)', fontsize=12)
+        plt.ylabel('修改後的價格 (New Price)', fontsize=12)
+        plt.grid(True)
+        plt.axis('equal')
+        plt.tight_layout()
+        
+        chart_path = os.path.join(output_dir, f"chart_comp_{source_name}_price_change.png")
+        plt.savefig(chart_path)
+        plt.close()
+        print(f"已儲存比較圖表 2 -> {chart_path}")
+    except Exception as e:
+        print(f"產生比較圖表 2 (價格變動) 失敗: {e}")
 
-    # --- 圖表 3: 【新增】修改最頻繁的分類長條圖 (Top 10) ---
-    if not df_modified.empty and 'category_old' in df_modified.columns:
-        try:
-            # 計算每個分類被修改的次數，並取前 10 名
+    # --- 圖表 3: 修改最頻繁的分類長條圖 (Top 10) ---
+    try:
+        plt.figure(figsize=(10, 7))
+        # 【修改邏輯】如果 df_modified 不是空的，且有分類欄位，就畫圖
+        if not df_modified.empty and 'category_old' in df_modified.columns and not df_modified['category_old'].dropna().empty:
             modified_category_counts = df_modified['category_old'].value_counts().nlargest(10)
-            
-            plt.figure(figsize=(10, 7))
             sns.barplot(x=modified_category_counts.values, y=modified_category_counts.index, palette="rocket")
-            
-            plt.title(f'{source_name} - 修改最頻繁的分類 (Top 10)', fontsize=16)
-            plt.xlabel('修改次數', fontsize=12)
-            plt.ylabel('分類 (修改前)', fontsize=12)
-            plt.tight_layout()
-            
-            chart_path = os.path.join(output_dir, f"chart_comp_{source_name}_modified_categories.png")
-            plt.savefig(chart_path)
-            plt.close()
-            print(f"已儲存比較圖表 3 -> {chart_path}")
-        except Exception as e:
-            print(f"產生比較圖表 3 (分類修改) 失敗: {e}")
+        # 【新增邏輯】如果沒有修改資料，就顯示空白圖表與提示
+        else:
+            plt.text(0.5, 0.5, '本次更新中無分類被修改的資料', ha='center', va='center', fontsize=14, color='gray')
+            plt.gca().get_xaxis().set_visible(False)
+            plt.gca().get_yaxis().set_visible(False)
+
+        plt.title(f'{source_name} - 修改最頻繁的分類 (Top 10)', fontsize=16)
+        plt.xlabel('修改次數', fontsize=12)
+        plt.ylabel('分類 (修改前)', fontsize=12)
+        plt.tight_layout()
+        
+        chart_path = os.path.join(output_dir, f"chart_comp_{source_name}_modified_categories.png")
+        plt.savefig(chart_path)
+        plt.close()
+        print(f"已儲存比較圖表 3 -> {chart_path}")
+    except Exception as e:
+        print(f"產生比較圖表 3 (分類修改) 失敗: {e}")
 
 # ==============================================================================
 # 主程式執行區塊
 # ==============================================================================
 if __name__ == '__main__':
     # --- 設定檔案路徑 (請根據您的實際情況修改這裡) ---
-    static_old_file = 'D:\\Vs.code\\IR&GenAI\\project1\\dual_source_scraper\\data\\books_static_20251011_p5.csv'
-    static_new_file = 'D:\\Vs.code\\IR&GenAI\\project1\\dual_source_scraper\\data\\books_static_20251011_p8.csv'
+    static_old_file = 'data/books_static_20251011_p5.csv'
+    static_new_file = 'data/books_static_20251011_p8.csv'
 
-    dynamic_old_file = 'D:\\Vs.code\\IR&GenAI\\project1\\dual_source_scraper\\data\\quotes_dynamic_20251011_p5.csv'
-    dynamic_new_file = 'D:\\Vs.code\\IR&GenAI\\project1\\dual_source_scraper\\data\\quotes_dynamic_20251011_p8.csv'
+    dynamic_old_file = 'data/quotes_dynamic_20251011_p5.csv'
+    dynamic_new_file = 'data/quotes_dynamic_20251011_p8.csv'
 
     # --- 處理靜態資料 ---
     print("--- 正在處理靜態 (Static) 資料 ---")
