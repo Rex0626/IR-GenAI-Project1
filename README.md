@@ -20,7 +20,7 @@
     ```
 
 ## 如何執行
-專案提供了 `run_first_time.sh` 和 `run_incremental.sh` 腳本，方便執行。
+專案提供了 `run_first_time.sh` 和 `run_incremental.sh` 腳本，方便執行。 
 
 1.  **首次完整爬取**:
     執行此腳本會爬取少量資料作為初始版本。
@@ -60,3 +60,28 @@
 - `requirement.txt`: 專案依賴套件列表。
 - `run_first_time.sh`: 首次執行爬蟲的腳本。
 - `run_incremental.sh`: 增量更新爬蟲的腳本。
+
+## 常見問題與解決方案 (Troubleshooting)
+
+### Q: 執行 `bash run_first_time.sh` 時，出現 `python: command not found` 錯誤？
+
+**A:** 這是因為您可能正在 VS Code 預設的 PowerShell 終端機中執行 Bash 腳本 (`.sh`)，而 PowerShell 的 Conda 環境設定不會自動傳遞給 Bash。
+
+**解決方案 (推薦):**
+
+1.  **在 VS Code 中切換到 Git Bash 終端機**
+    * 在終端機視窗，點擊「+」號旁邊的下拉箭頭，選擇 **`Git Bash`**。 (如果您沒有此選項，請先安裝 [Git for Windows](https://git-scm.com/downloads) 並重啟 VS Code)。
+
+2.  **為 Git Bash 初始化 Conda (只需做一次)**
+    * 在**新開啟的 Git Bash** 終端機中，執行以下指令，讓 Bash 認識 `conda`：
+        ```bash
+        conda init bash
+        ```
+    * 執行後，**關閉並重新開啟** Git Bash 終端機。
+
+3.  **重新啟用環境並執行腳本**
+    * 在設定好的 Git Bash 終端機中，您現在可以成功啟用環境並執行腳本了：
+        ```bash
+        conda activate ir_project
+        bash run_first_time.sh
+        ```
