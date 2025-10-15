@@ -8,16 +8,20 @@ st.title("雙來源網頁爬蟲與差異分析 成果展示")
 
 # --- 載入資料與圖表 ---
 # 讓使用者可以選擇要看哪個來源的資料
-source_choice = st.selectbox("請選擇要查看的資料來源：", ["靜態網站 (books_static)", "動態網站 (quotes_dynamic)"])
+source_choice = st.selectbox("請選擇要查看的資料來源：", ["靜態網站 (books_static)", "動態網站 (quotes_dynamic)", "UDN 體育新聞 (udn_sports)"])
 
 if "static" in source_choice:
     source_name = "books_static"
     # 【路徑修正 1】data_file 的路徑也需要對應您的專案結構
     data_file = os.path.join('data', 'books_static_20251011_p8.csv') # 【請確認檔名正確】
-else:
+elif "dynamic" in source_choice:
     source_name = "quotes_dynamic"
     # 【路徑修正 2】data_file 的路徑也需要對應您的專案結構
     data_file = os.path.join('data', 'quotes_dynamic_20251011_p8.csv') # 【請確認檔名正確】
+else:
+    source_name = "udn_sports"
+    # 【路徑修正 2】data_file 的路徑也需要對應您的專案結構
+    data_file = os.path.join('data', 'udn_sports_100.csv') # 【請確認檔名正確】
 
 # 【路徑修正 3 - 核心修正】顯示比較摘要圖
 summary_chart_path = os.path.join("reports", f"chart_comp_{source_name}_summary.png")
