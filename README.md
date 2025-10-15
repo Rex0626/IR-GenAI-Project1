@@ -20,7 +20,7 @@
     ```
 
 ## 如何執行
-專案提供了 `run_first_time.sh` 和 `run_incremental.sh` 腳本，方便執行。 
+專案提供了 `run_first_time.sh` 、 `run_incremental.sh` 和 `compare_and_visualize.sh` 腳本，方便執行。 
 
 1.  **首次完整爬取**:
     執行此腳本會爬取少量資料作為初始版本。
@@ -32,10 +32,10 @@
     ```bash
     bash run_incremental.sh
     ```
-3.  **執行差異分析**:
-    爬取完兩次資料後，請確認 `compare/src.py` 中的檔案路徑設定正確，然後執行：
+3.  **執行差異分析,並製作可視圖**:
+    爬取完兩次資料後，然後執行：
     ```bash
-    python compare/src.py
+    bash compare_and_visualize.sh
     ```
 4.  **啟動互動介面**:
     ```bash
@@ -49,6 +49,7 @@
 ## 專案結構
 - `/compare`: 存放資料比較與分析相關的程式碼。
   - `src.py`: 執行差異分析與視覺化的主要腳本。
+  - `visualize_udn_report.py`: udn的比較結果視覺化的主要腳本。
   - `__init__.py`: 將此資料夾標記為 Python 套件。
 - `/dual_source_scraper`: 存放爬蟲相關的程式碼與產出。
   - `/data`: 存放爬蟲抓取的 CSV 檔案。
@@ -60,6 +61,7 @@
 - `requirement.txt`: 專案依賴套件列表。
 - `run_first_time.sh`: 首次執行爬蟲的腳本。
 - `run_incremental.sh`: 增量更新爬蟲的腳本。
+- `compare_and_visualize.sh`: 執行差異分析與視覺化的腳本。
 
 ## 常見問題與解決方案 (Troubleshooting)
 
