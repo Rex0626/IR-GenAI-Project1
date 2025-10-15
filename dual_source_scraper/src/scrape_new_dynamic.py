@@ -8,7 +8,7 @@ UDN Sports category scraper（含 snapshot 模式 + 相對路徑）
 資料夾結構：
     data/    → 主資料（每日快照）
     logs/    → 爬取日誌
-    result/  → diff_YYYYMMDD.csv, summary.json
+    reports/  → diff_YYYYMMDD.csv, summary.json
 """
 
 import argparse
@@ -30,7 +30,7 @@ from bs4 import BeautifulSoup
 BASE_PATH = os.path.abspath(".")
 DATA_DIR = os.path.join(BASE_PATH, "data")
 LOG_DIR = os.path.join(BASE_PATH, "logs")
-REPORT_DIR = os.path.join(BASE_PATH, "result")
+REPORT_DIR = os.path.join(BASE_PATH, "reports")
 
 for d in [DATA_DIR, LOG_DIR, REPORT_DIR]:
     os.makedirs(d, exist_ok=True)
