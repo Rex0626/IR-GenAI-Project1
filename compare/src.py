@@ -4,15 +4,53 @@ import os
 from datetime import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
+import platform
 from matplotlib import font_manager
 
-# 指定中文字型（以 Windows 為例）
-plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']  # 微軟正黑體
-plt.rcParams['axes.unicode_minus'] = False  # 正常顯示負號
+# ==========================================================
+# 🛠 使用者設定區（請根據實際路徑修改）
+# ==========================================================
+BASE_DIR   = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+DATA_DIR   = os.path.join(BASE_DIR, 'data')
+REPORT_DIR = os.path.join(BASE_DIR, 'reports')
 
+# 【靜態資料】
+static_old_file= os.path.join(DATA_DIR, 'books_static_20251011_p5.csv')
+static_new_file= os.path.join(DATA_DIR, 'books_static_20251011_p8.csv')
+
+# 【動態資料】
+dynamic_old_file = os.path.join(DATA_DIR, 'quotes_dynamic_20251011_p5.csv')
+dynamic_new_file = os.path.join(DATA_DIR, 'quotes_dynamic_20251011_p10.csv')
+# ==========================================================
+
+# 指定中文字型（以 Windows 為例）
+# 自動偵測作業系統，設定中文顯示字型
+if platform.system() == 'Darwin':  # macOS
+    plt.rcParams['font.sans-serif'] = ['Heiti TC', 'PingFang TC', 'Arial Unicode MS']
+elif platform.system() == 'Windows':
+    plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei']
+else:  # Linux 或其他
+    plt.rcParams['font.sans-serif'] = ['Noto Sans CJK TC', 'SimHei']
+
+plt.rcParams['axes.unicode_minus'] = False  # 正常顯示負號
 # ==============================================================================
 # 函式 1: 專門進行資料比較與報告生成
 # ==============================================================================
+SOURCES = {
+    "books_static": {
+        "old_file": static_old_file,  
+        "new_file": static_new_file,  
+        "key_columns": ['price/value', 'title', 'category'],
+        "visual_focus": "price",
+    },
+    "quotes_dynamic": {
+        "old_file": dynamic_old_file, 
+        "new_file": dynamic_new_file, 
+        "key_columns": ['title', 'author/vendor', 'category'],
+        "visual_focus": "author",
+    }
+}
+
 def generate_diff_report(
     old_file_path: str,
     new_file_path: str,
@@ -53,7 +91,56 @@ def generate_diff_report(
     common_ids = old_ids.intersection(new_ids)
     df_old_common = df_old[df_old['id'].isin(common_ids)].set_index('id').sort_index()
     df_new_common = df_new[df_new['id'].isin(common_ids)].set_index('id').sort_index()
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # ✅【唯一定點修改】quotes_dynamic 的比對欄位與前處理（其它程式碼完全不動）
+    if source_name == 'quotes_dynamic':
+        # 只用引言內容判定是否修改（若你要把作者/分類也納入，改成 ['title','author/vendor','category']）
+        key_columns = ['title','author/vendor']
+
+        # title 輕量清洗：統一引號、去除前後空白
+        if 'title' in df_old_common.columns:
+            df_old_common['title'] = df_old_common['title'].apply(
+                lambda x: x.replace('“','"').replace('”','"').replace('’',"'").strip()
+                if isinstance(x, str) else x
+            )
+        if 'title' in df_new_common.columns:
+            df_new_common['title'] = df_new_common['title'].apply(
+                lambda x: x.replace('“','"').replace('”','"').replace('’',"'").strip()
+                if isinstance(x, str) else x
+            )
+
+        # category 正規化：全/半形空白、大小寫、分隔符（| , / ;）→ 轉為排序去重後的集合字串
+        import re
+        def _norm_cat(s):
+            if not isinstance(s, str): return s
+            s = s.replace('　', ' ').strip().lower()
+            parts = [p.strip() for p in re.split(r'[|,/;]', s) if p.strip()]
+            return '|'.join(sorted(set(parts)))
+        if 'category' in df_old_common.columns:
+            df_old_common['category'] = df_old_common['category'].apply(_norm_cat)
+        if 'category' in df_new_common.columns:
+            df_new_common['category'] = df_new_common['category'].apply(_norm_cat)
+    # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # 確保比較的欄位都存在
+    valid_key_columns = [col for col in key_columns if col in df_old_common.columns and col in df_new_common.columns]
     
+    modified_ids = []
+    if valid_key_columns:
+        comparison_df = (df_old_common[valid_key_columns] != df_new_common[valid_key_columns])
+        modified_mask = comparison_df.any(axis=1)
+        modified_ids = df_old_common[modified_mask].index.tolist()
+    print("✅ added_ids:", added_ids)
+    print("✅ deleted_ids:", deleted_ids)
+    print("✅ modified_ids:", modified_ids)
+    print("✅ valid_key_columns:", valid_key_columns)
+    if modified_ids:
+        print("🔍 偵測到修改的項目：")
+        for mid in modified_ids:
+            diffs = comparison_df.loc[mid]
+            changed_cols = [c for c, changed in diffs.items() if changed]
+            print(f" - id={mid}, 改變欄位={changed_cols}")
     # 確保比較的欄位都存在
     valid_key_columns = [col for col in key_columns if col in df_old_common.columns and col in df_new_common.columns]
     
@@ -152,16 +239,32 @@ def create_comparison_visualizations(
     source_name: str,
     output_dir: str = "reports"
 ):
-    """
-    根據差異分析的結果，產生並儲存 3 張專門的「比較」視覺化圖表。
-    此版本確保在沒有修改資料時，也會產生帶有提示的空白圖表，以維持報告一致性。
-    """
     if not summary_data:
         print("沒有摘要資料，跳過差異視覺化。")
         return
 
     print(f"--- 正在為 {source_name} 產生「比較結果」視覺化圖表 ---")
     os.makedirs(output_dir, exist_ok=True)
+
+    # 若為 quotes_dynamic，只產生 summary 圖
+    if "quotes_dynamic" in source_name:
+        try:
+            counts = summary_data.get('counts', {})
+            df_counts = pd.DataFrame(list(counts.items()), columns=['變動類型', '數量'])
+            df_counts['變動類型'] = df_counts['變動類型'].map({'added': '新增', 'deleted': '刪除', 'modified': '修改'})
+
+            plt.figure(figsize=(8, 6))
+            sns.barplot(data=df_counts, x='變動類型', y='數量', palette="mako")
+            plt.title(f'{source_name} - 資料變動摘要', fontsize=16)
+            plt.tight_layout()
+
+            chart_path = os.path.join(output_dir, f"chart_comp_{source_name}_summary.png")
+            plt.savefig(chart_path)
+            plt.close()
+            print(f"已儲存比較圖表 (僅摘要) -> {chart_path}")
+        except Exception as e:
+            print(f"產生比較圖表 (摘要) 失敗: {e}")
+        return  # 🟡 結束函式，不畫價格與分類圖
 
     # --- 圖表 1: 資料變動摘要長條圖 (此圖表一定會產生) ---
     try:
@@ -243,70 +346,93 @@ def create_comparison_visualizations(
     except Exception as e:
         print(f"產生比較圖表 3 (分類修改) 失敗: {e}")
 
+def create_visualizations_quotes(dataframe, source_name, output_dir="reports"):
+    """
+    為引言類型資料產生視覺化圖表。
+    例如：作者出現次數、主題分佈。
+    """
+    if dataframe.empty:
+        print("資料為空，無法產生圖表。")
+        return
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 1️⃣ 作者出現次數 Top 15
+    try:
+        plt.figure(figsize=(12, 8))
+        author_counts = dataframe['author/vendor'].value_counts().nlargest(15)
+        sns.barplot(x=author_counts.values, y=author_counts.index, palette="crest")
+        plt.title(f'{source_name} - 作者出現次數 (Top 15)', fontsize=16)
+        plt.xlabel('數量', fontsize=12)
+        plt.ylabel('作者 / 出處', fontsize=12)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, f"chart_{source_name}_authors.png"))
+        plt.close()
+    except Exception as e:
+        print(f"產生圖表 1 (作者統計) 失敗: {e}")
+
+    # 2️⃣ 主題分類分佈 (Top 10)
+    try:
+        plt.figure(figsize=(10, 6))
+        cat_counts = dataframe['category'].value_counts().nlargest(10)
+        sns.barplot(x=cat_counts.values, y=cat_counts.index, palette="flare")
+        plt.title(f'{source_name} - 主題分類分佈', fontsize=16)
+        plt.xlabel('數量', fontsize=12)
+        plt.ylabel('主題分類', fontsize=12)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, f"chart_{source_name}_categories.png"))
+        plt.close()
+    except Exception as e:
+        print(f"產生圖表 2 (主題分類) 失敗: {e}")
+        
+        # 🆕 3️⃣ 作者數量分佈（完整長條圖）
+    try:
+        plt.figure(figsize=(14, 8))
+        author_counts_all = dataframe['author'].value_counts()
+        sns.barplot(x=author_counts_all.values, y=author_counts_all.index, palette="ch:s=.25,rot=-.25")
+        plt.title(f'{source_name} - 作者數量分佈（完整）', fontsize=16)
+        plt.xlabel('引言數量', fontsize=12)
+        plt.ylabel('作者', fontsize=12)
+        plt.tight_layout()
+        chart_path = os.path.join(output_dir, f"chart_{source_name}_authors_full.png")
+        plt.savefig(chart_path)
+        plt.close()
+        print(f"已儲存圖表 3 (作者完整分佈) -> {chart_path}")
+    except Exception as e:
+        print(f"產生圖表 3 (作者完整分佈) 失敗: {e}")
 # ==============================================================================
 # 主程式執行區塊
 # ==============================================================================
 if __name__ == '__main__':
-    # --- 設定檔案路徑 (請根據您的實際情況修改這裡) ---
-    static_old_file = 'data/books_static_20251011_p5.csv'
-    static_new_file = 'data/books_static_20251011_p8.csv'
+    for source_name, config in SOURCES.items():
+        print(f"--- 處理來源：{source_name} ---")
 
-    dynamic_old_file = 'data/quotes_dynamic_20251011_p5.csv'
-    dynamic_new_file = 'data/quotes_dynamic_20251011_p8.csv'
+        old_file = config["old_file"]
+        new_file = config["new_file"]
 
-    # --- 處理靜態資料 ---
-    print("--- 正在處理靜態 (Static) 資料 ---")
-    if os.path.exists(static_old_file) and os.path.exists(static_new_file):
-        # 步驟 1: 執行比較，並用變數接收回傳的 摘要(summary) 和 差異報告(diff)
-        static_summary, static_diff = generate_diff_report(
-            old_file_path=static_old_file,
-            new_file_path=static_new_file,
-            source_name='books_static'
-        )
-        
-        # 步驟 2: 根據最新資料進行「狀態」分析視覺化
-        df_static_new = pd.read_csv(static_new_file)
-        create_visualizations(
-            dataframe=df_static_new,
-            source_name='books_static'
-        )
-
-        # 步驟 3: 將步驟 1 的比較結果傳入，進行「差異」分析視覺化
-        if static_summary and static_diff is not None:
-            create_comparison_visualizations(
-                summary_data=static_summary,
-                diff_dataframe=static_diff,
-                source_name='books_static'
+        if os.path.exists(old_file) and os.path.exists(new_file):
+            summary, diff = generate_diff_report(
+                old_file_path=old_file,
+                new_file_path=new_file,
+                source_name=source_name,
+                key_columns=config["key_columns"],
+                output_dir=REPORT_DIR   # <- 用統一的輸出資料夾
             )
-    else:
-        print(f"找不到靜態資料檔案，跳過處理。")
 
-    print("\n" + "="*50 + "\n")
+            df_new = pd.read_csv(new_file)
 
-    # --- 處理動態資料 ---
-    print("--- 正在處理動態 (Dynamic) 資料 ---")
-    if os.path.exists(dynamic_old_file) and os.path.exists(dynamic_new_file):
-        # 同樣地，接收比較結果
-        dynamic_summary, dynamic_diff = generate_diff_report(
-            old_file_path=dynamic_old_file,
-            new_file_path=dynamic_new_file,
-            source_name='quotes_dynamic',
-            key_columns=['title', 'author/vendor', 'category']
-        )
-        
-        # 進行「狀態」分析視覺化
-        df_dynamic_new = pd.read_csv(dynamic_new_file)
-        create_visualizations(
-            dataframe=df_dynamic_new,
-            source_name='quotes_dynamic'
-        )
+            # 依來源選擇視覺化
+            if config["visual_focus"] == "price":
+                create_visualizations(df_new, source_name, output_dir=REPORT_DIR)
+            elif config["visual_focus"] == "author":
+                create_visualizations_quotes(df_new, source_name, output_dir=REPORT_DIR)
 
-        # 進行「差異」分析視覺化
-        if dynamic_summary and dynamic_diff is not None:
+            # 差異圖表（內部已處理無價格欄位時的顯示/略過）
             create_comparison_visualizations(
-                summary_data=dynamic_summary,
-                diff_dataframe=dynamic_diff,
-                source_name='quotes_dynamic'
+                summary_data=summary,
+                diff_dataframe=diff,
+                source_name=source_name,
+                output_dir=REPORT_DIR
             )
-    else:
-        print(f"找不到動態資料檔案，跳過處理。")
+        else:
+            print(f"⚠️ 找不到資料檔案，略過 {source_name}")
